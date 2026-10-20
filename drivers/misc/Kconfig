@@ -301,8 +301,10 @@ config QCOM_COINCELL
 config QCOM_FASTRPC
 	tristate "Qualcomm FastRPC"
 	depends on ARCH_QCOM || COMPILE_TEST
+	depends on NET
 	depends on RPMSG
 	select DMA_SHARED_BUFFER
+	select QCOM_PDR_HELPERS
 	select QCOM_SCM
 	help
 	  Provides a communication mechanism that allows for clients to

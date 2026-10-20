@@ -288,18 +288,19 @@ static int qcom_ice_wait_bist_status(struct qcom_ice *ice)
 	return 0;
 }
 
-static void qcom_ice_hwkm_init(struct qcom_ice *ice)
+static int qcom_ice_hwkm_init(struct qcom_ice *ice)
 {
 	u32 regval;
 	int (*broadcast)(void) = NULL;
 
 	if (!ice->use_hwkm)
-		return;
+		return 0;
+	ice->hwkm_init_complete = false;
 	if (ice->android_legacy_hwkm) {
 		broadcast = symbol_get(aynthor_tme_broadcast_transport_key);
 		if (!broadcast) {
 			dev_warn_ratelimited(ice->dev, "TME provider not loaded; HWKM stays uninitialized\n");
-			return;
+			return 0;
 		}
 	}
 
@@ -355,18 +356,23 @@ static void qcom_ice_hwkm_init(struct qcom_ice *ice)
 		symbol_put(aynthor_tme_broadcast_transport_key);
 		if (err) {
 			dev_err_ratelimited(ice->dev, "TME transport-key broadcast failed: %d\n", err);
-			return;
+			return err < 0 ? err : -EIO;
 		}
 		dev_info(ice->dev, "TME transport-key broadcast succeeded\n");
 	}
 	ice->hwkm_init_complete = true;
+	return 0;
 }
 
 int qcom_ice_enable(struct qcom_ice *ice)
 {
+	int err;
+
 	qcom_ice_low_power_mode_enable(ice);
 	qcom_ice_optimization_enable(ice);
-	qcom_ice_hwkm_init(ice);
+	err = qcom_ice_hwkm_init(ice);
+	if (err)
+		return err;
 	return qcom_ice_wait_bist_status(ice);
 }
 EXPORT_SYMBOL_GPL(qcom_ice_enable);
@@ -388,8 +394,15 @@ int qcom_ice_resume(struct qcom_ice *ice)
 		clk_disable_unprepare(ice->core_clk);
 		return err;
 	}
-	qcom_ice_hwkm_init(ice);
-	return qcom_ice_wait_bist_status(ice);
+	err = qcom_ice_hwkm_init(ice);
+	if (!err)
+		err = qcom_ice_wait_bist_status(ice);
+	if (err) {
+		ice->hwkm_init_complete = false;
+		clk_disable_unprepare(ice->iface_clk);
+		clk_disable_unprepare(ice->core_clk);
+	}
+	return err;
 }
 EXPORT_SYMBOL_GPL(qcom_ice_resume);
 
@@ -424,8 +437,11 @@ static int qcom_ice_program_wrapped_key(struct qcom_ice *ice, unsigned int slot,
 		return -EINVAL;
 	}
 	if (!ice->hwkm_init_complete) {
-		if (ice->android_legacy_hwkm)
-			qcom_ice_hwkm_init(ice);
+		if (ice->android_legacy_hwkm) {
+			err = qcom_ice_hwkm_init(ice);
+			if (err)
+				return err;
+		}
 	}
 	if (!ice->hwkm_init_complete) {
 		dev_err_ratelimited(dev, "HWKM not yet initialized\n");
