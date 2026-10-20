@@ -358,7 +358,7 @@ static int qcom_ice_hwkm_init(struct qcom_ice *ice)
 			dev_err_ratelimited(ice->dev, "TME transport-key broadcast failed: %d\n", err);
 			return err < 0 ? err : -EIO;
 		}
-		dev_info(ice->dev, "TME transport-key broadcast succeeded\n");
+		dev_dbg(ice->dev, "TME transport-key broadcast succeeded\n");
 	}
 	ice->hwkm_init_complete = true;
 	return 0;
