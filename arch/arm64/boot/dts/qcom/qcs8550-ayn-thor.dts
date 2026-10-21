@@ -7,6 +7,11 @@
 
 #include "qcs8550-ayn-common.dtsi"
 
+&pm8550b_hv_haptics {
+	qcom,vmax-mv = <1300>;
+	/delete-property/ qcom,use-erm;
+};
+
 / {
 	model = "AYN Thor";
 	compatible = "ayn,thor", "qcom,qcs8550", "qcom,sm8550";
@@ -473,3 +478,6 @@
 &spk_amp_r {
 	firmware-name = "qcom/sm8550/ayn/thor/aw883xx_acf.bin";
 };
+
+#include "thorch-ssc-heap.dtsi"
+#include "thorch-ssc-pd.dtsi"
