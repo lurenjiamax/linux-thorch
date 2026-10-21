@@ -13,6 +13,12 @@
 #include <asm/types.h>
 #include <asm/posix_types.h>
 
+/* Match UAPI types used by current arm64 ptrace and signal headers. */
+#ifdef __SIZEOF_INT128__
+typedef __signed__ __int128 __s128 __attribute__((aligned(16)));
+typedef unsigned __int128 __u128 __attribute__((aligned(16)));
+#endif
+
 struct page;
 struct kmem_cache;
 

@@ -7,6 +7,11 @@
 #ifndef __ASSEMBLER__
 
 /* copied from linux:include/uapi/linux/types.h */
+#ifdef __SIZEOF_INT128__
+typedef __signed__ __int128 __s128 __attribute__((aligned(16)));
+typedef unsigned __int128 __u128 __attribute__((aligned(16)));
+#endif
+
 #define __bitwise
 typedef __u16 __bitwise __le16;
 typedef __u16 __bitwise __be16;
