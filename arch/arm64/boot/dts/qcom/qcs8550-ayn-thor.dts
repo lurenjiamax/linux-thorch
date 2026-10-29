@@ -25,6 +25,7 @@
 		 */
 		ramoops {
 			compatible = "ramoops";
+			no-map;
 			size = <0 0x400000>;
 			alignment = <0 0x400000>;
 			alloc-ranges = <0 0 0xffffffff 0xffffffff>;

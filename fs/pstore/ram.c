@@ -20,6 +20,7 @@
 #include <linux/compiler.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/mm.h>
 
 #include "internal.h"
@@ -655,14 +656,24 @@ static int ramoops_parse_dt(struct platform_device *pdev,
 	dev_dbg(&pdev->dev, "using Device Tree\n");
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(&pdev->dev,
-			"failed to locate DT /reserved-memory resource\n");
-		return -EINVAL;
-	}
+	if (res) {
+		pdata->mem_size = resource_size(res);
+		pdata->mem_address = res->start;
+	} else {
+		/* A size-based reserved-memory node has no reg property. Use
+		 * the region selected by early memblock allocation instead.
+		 */
+		struct reserved_mem *rmem = of_reserved_mem_lookup(of_node);
 
-	pdata->mem_size = resource_size(res);
-	pdata->mem_address = res->start;
+		if (rmem && rmem->size) {
+			pdata->mem_size = rmem->size;
+			pdata->mem_address = rmem->base;
+		} else {
+			dev_err(&pdev->dev,
+				"failed to locate DT /reserved-memory resource\n");
+			return -EINVAL;
+		}
+	}
 	/*
 	 * Setting "unbuffered" is deprecated and will be ignored if
 	 * "mem_type" is also specified.
