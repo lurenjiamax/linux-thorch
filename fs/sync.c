@@ -73,15 +73,23 @@ EXPORT_SYMBOL(sync_filesystem);
 
 static void sync_inodes_one_sb(struct super_block *sb, void *arg)
 {
-	if (!sb_rdonly(sb))
+	if (!sb_rdonly(sb)) {
+		pr_debug("sync inodes %s (%s) begin\n", sb->s_id, sb->s_type->name);
 		sync_inodes_sb(sb);
+		pr_debug("sync inodes %s (%s) end\n", sb->s_id, sb->s_type->name);
+	}
 }
 
 static void sync_fs_one_sb(struct super_block *sb, void *arg)
 {
 	if (!sb_rdonly(sb) && !(sb->s_iflags & SB_I_SKIP_SYNC) &&
-	    sb->s_op->sync_fs)
+	    sb->s_op->sync_fs) {
+		pr_debug("sync fs %s (%s) wait=%d begin\n",
+			 sb->s_id, sb->s_type->name, *(int *)arg);
 		sb->s_op->sync_fs(sb, *(int *)arg);
+		pr_debug("sync fs %s (%s) wait=%d end\n",
+			 sb->s_id, sb->s_type->name, *(int *)arg);
+	}
 }
 
 /*
