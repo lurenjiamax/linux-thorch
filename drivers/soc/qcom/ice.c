@@ -296,6 +296,8 @@ static int qcom_ice_hwkm_init(struct qcom_ice *ice)
 	if (!ice->use_hwkm)
 		return 0;
 	ice->hwkm_init_complete = false;
+	dev_dbg(ice->dev, "PMDIAG hwkm begin legacy=%d version=%u\n",
+		ice->android_legacy_hwkm, ice->hwkm_version);
 	if (ice->android_legacy_hwkm) {
 		broadcast = symbol_get(aynthor_tme_broadcast_transport_key);
 		if (!broadcast) {
@@ -349,10 +351,13 @@ static int qcom_ice_hwkm_init(struct qcom_ice *ice)
 		qcom_ice_writel(ice, ctl & ~BIT(8), HWKM_OFFSET + 0x101c);
 		qcom_ice_writel(ice, 0x18c, HWKM_OFFSET + 0x101c);
 		wmb();
+		dev_dbg(ice->dev, "PMDIAG hwkm broadcast begin\n");
 		err = broadcast();
+		dev_dbg(ice->dev, "PMDIAG hwkm broadcast end ret=%d; reception-disable begin\n", err);
 		ctl = qcom_ice_readl(ice, HWKM_OFFSET + 0x101c);
 		qcom_ice_writel(ice, ctl & ~BIT(8), HWKM_OFFSET + 0x101c);
 		wmb();
+		dev_dbg(ice->dev, "PMDIAG hwkm reception-disable end\n");
 		symbol_put(aynthor_tme_broadcast_transport_key);
 		if (err) {
 			dev_err_ratelimited(ice->dev, "TME transport-key broadcast failed: %d\n", err);
@@ -361,6 +366,7 @@ static int qcom_ice_hwkm_init(struct qcom_ice *ice)
 		dev_dbg(ice->dev, "TME transport-key broadcast succeeded\n");
 	}
 	ice->hwkm_init_complete = true;
+	dev_dbg(ice->dev, "PMDIAG hwkm end\n");
 	return 0;
 }
 
@@ -382,26 +388,35 @@ int qcom_ice_resume(struct qcom_ice *ice)
 	struct device *dev = ice->dev;
 	int err;
 
+	dev_dbg(dev, "PMDIAG ice resume core-clock begin\n");
 	err = clk_prepare_enable(ice->core_clk);
+	dev_dbg(dev, "PMDIAG ice resume core-clock end ret=%d\n", err);
 	if (err) {
 		dev_err(dev, "Failed to enable core clock: %d\n", err);
 		return err;
 	}
 
+	dev_dbg(dev, "PMDIAG ice resume iface-clock begin\n");
 	err = clk_prepare_enable(ice->iface_clk);
+	dev_dbg(dev, "PMDIAG ice resume iface-clock end ret=%d\n", err);
 	if (err) {
 		dev_err(dev, "Failed to enable iface clock: %d\n", err);
 		clk_disable_unprepare(ice->core_clk);
 		return err;
 	}
 	err = qcom_ice_hwkm_init(ice);
-	if (!err)
+	dev_dbg(dev, "PMDIAG ice resume hwkm end ret=%d\n", err);
+	if (!err) {
+		dev_dbg(dev, "PMDIAG ice resume bist begin\n");
 		err = qcom_ice_wait_bist_status(ice);
+		dev_dbg(dev, "PMDIAG ice resume bist end ret=%d\n", err);
+	}
 	if (err) {
 		ice->hwkm_init_complete = false;
 		clk_disable_unprepare(ice->iface_clk);
 		clk_disable_unprepare(ice->core_clk);
 	}
+	dev_dbg(dev, "PMDIAG ice resume end ret=%d\n", err);
 	return err;
 }
 EXPORT_SYMBOL_GPL(qcom_ice_resume);

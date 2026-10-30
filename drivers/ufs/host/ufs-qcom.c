@@ -250,7 +250,9 @@ static int ufs_qcom_ice_keyslot_program(struct blk_crypto_profile *profile,
 	int err;
 
 	ufshcd_hold(hba);
+	dev_dbg(hba->dev, "PMDIAG keyslot program begin slot=%u\n", slot);
 	err = qcom_ice_program_key(host->ice, slot, key);
+	dev_dbg(hba->dev, "PMDIAG keyslot program end slot=%u ret=%d\n", slot, err);
 	ufshcd_release(hba);
 	return err;
 }
@@ -811,7 +813,9 @@ static int ufs_qcom_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	int err;
 	u32 reg_val;
 
+	dev_dbg(hba->dev, "PMDIAG qcom resume lane-clocks begin op=%d\n", pm_op);
 	err = ufs_qcom_enable_lane_clks(host);
+	dev_dbg(hba->dev, "PMDIAG qcom resume lane-clocks end ret=%d\n", err);
 	if (err)
 		return err;
 
@@ -832,7 +836,10 @@ static int ufs_qcom_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		ufshcd_readl(hba, UFS_MEM_ICE_CFG);
 	}
 
-	return ufs_qcom_ice_resume(host);
+	dev_dbg(hba->dev, "PMDIAG qcom resume ice begin\n");
+	err = ufs_qcom_ice_resume(host);
+	dev_dbg(hba->dev, "PMDIAG qcom resume ice end ret=%d\n", err);
+	return err;
 }
 
 static int ufs_qcom_fw_managed_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op,
@@ -853,13 +860,18 @@ static int ufs_qcom_fw_managed_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	struct ufs_qcom_host *host = ufshcd_get_variant(hba);
 	int err;
 
+	dev_dbg(hba->dev, "PMDIAG firmware resume runtime-get begin\n");
 	err = pm_runtime_resume_and_get(hba->dev);
+	dev_dbg(hba->dev, "PMDIAG firmware resume runtime-get end ret=%d\n", err);
 	if (err) {
 		dev_err(hba->dev, "PM runtime resume failed: %d\n", err);
 		return err;
 	}
 
-	return ufs_qcom_ice_resume(host);
+	dev_dbg(hba->dev, "PMDIAG firmware resume ice begin\n");
+	err = ufs_qcom_ice_resume(host);
+	dev_dbg(hba->dev, "PMDIAG firmware resume ice end ret=%d\n", err);
+	return err;
 }
 
 static void ufs_qcom_dev_ref_clk_ctrl(struct ufs_qcom_host *host, bool enable)

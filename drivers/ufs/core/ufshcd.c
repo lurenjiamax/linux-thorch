@@ -10605,13 +10605,17 @@ static int __ufshcd_wl_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	enum uic_link_state old_link_state = hba->uic_link_state;
 
 	hba->pm_op_in_progress = true;
+	dev_dbg(hba->dev, "PMDIAG wl resume begin op=%d link=%d power=%d\n",
+		pm_op, hba->uic_link_state, hba->curr_dev_pwr_mode);
 
 	/*
 	 * Call vendor specific resume callback. As these callbacks may access
 	 * vendor specific host controller register space call them when the
 	 * host clocks are ON.
 	 */
+	dev_dbg(hba->dev, "PMDIAG wl vendor-resume begin\n");
 	ret = ufshcd_vops_resume(hba, pm_op);
+	dev_dbg(hba->dev, "PMDIAG wl vendor-resume end ret=%d\n", ret);
 	if (ret)
 		goto out;
 
@@ -10628,7 +10632,9 @@ static int __ufshcd_wl_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	WARN_ON(ufshcd_is_ufs_dev_deepsleep(hba) && !ufshcd_is_link_off(hba));
 
 	if (ufshcd_is_link_hibern8(hba)) {
+		dev_dbg(hba->dev, "PMDIAG wl hibern8-exit begin\n");
 		ret = ufshcd_uic_hibern8_exit(hba);
+		dev_dbg(hba->dev, "PMDIAG wl hibern8-exit end ret=%d\n", ret);
 		if (!ret) {
 			ufshcd_set_link_active(hba);
 		} else {
@@ -10651,7 +10657,9 @@ static int __ufshcd_wl_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		 * Note, in the case of DeepSleep, the device will exit
 		 * DeepSleep due to device reset.
 		 */
+		dev_dbg(hba->dev, "PMDIAG wl reset-restore begin\n");
 		ret = ufshcd_reset_and_restore(hba);
+		dev_dbg(hba->dev, "PMDIAG wl reset-restore end ret=%d\n", ret);
 		/*
 		 * ufshcd_reset_and_restore() should have already
 		 * set the link state as active
@@ -10661,14 +10669,19 @@ static int __ufshcd_wl_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	}
 
 	if (!ufshcd_is_ufs_dev_active(hba)) {
+		dev_dbg(hba->dev, "PMDIAG wl active-power begin\n");
 		ret = ufshcd_set_dev_pwr_mode(hba, UFS_ACTIVE_PWR_MODE);
+		dev_dbg(hba->dev, "PMDIAG wl active-power end ret=%d\n", ret);
 		if (ret)
 			goto set_old_link_state;
+		dev_dbg(hba->dev, "PMDIAG wl timestamp begin\n");
 		ufshcd_set_timestamp_attr(hba);
+		dev_dbg(hba->dev, "PMDIAG wl timestamp end\n");
 		schedule_delayed_work(&hba->ufs_rtc_update_work,
 				      msecs_to_jiffies(UFS_RTC_UPDATE_INTERVAL_MS));
 	}
 
+	dev_dbg(hba->dev, "PMDIAG wl bkops begin\n");
 	if (ufshcd_keep_autobkops_enabled_except_suspend(hba))
 		ufshcd_enable_auto_bkops(hba);
 	else
@@ -10678,9 +10691,11 @@ static int __ufshcd_wl_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		 */
 		ufshcd_bkops_ctrl(hba);
 
+	dev_dbg(hba->dev, "PMDIAG wl bkops end; ee-control begin\n");
 	if (hba->ee_usr_mask)
 		ufshcd_write_ee_control(hba);
 
+	dev_dbg(hba->dev, "PMDIAG wl ee-control end; clkscaling begin\n");
 	if (ufshcd_is_clkscaling_supported(hba))
 		ufshcd_clk_scaling_suspend(hba, false);
 
@@ -10689,7 +10704,9 @@ static int __ufshcd_wl_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		cancel_delayed_work(&hba->rpm_dev_flush_recheck_work);
 	}
 
+	dev_dbg(hba->dev, "PMDIAG wl auto-hibern8 begin\n");
 	ufshcd_configure_auto_hibern8(hba);
+	dev_dbg(hba->dev, "PMDIAG wl auto-hibern8 end\n");
 
 	goto out;
 
@@ -10710,9 +10727,13 @@ out:
 	 * now-runnable threaded handler drains any remaining IS and unmasks the line.
 	 */
 	hba->pm_op_in_progress = false;
+	dev_dbg(hba->dev, "PMDIAG wl poller-stop begin ret=%d\n", ret);
 	timer_delete_sync(&hba->pm_poll_timer);
+	dev_dbg(hba->dev, "PMDIAG wl poller-stop end; release begin\n");
 	hba->clk_gating.is_suspended = false;
 	ufshcd_release(hba);
+	dev_dbg(hba->dev, "PMDIAG wl resume end ret=%d link=%d power=%d\n",
+		ret, hba->uic_link_state, hba->curr_dev_pwr_mode);
 	return ret;
 }
 

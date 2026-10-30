@@ -110,7 +110,9 @@ bool ufshcd_crypto_enable(struct ufs_hba *hba)
 		return false;
 
 	/* Reset might clear all keys, so reprogram all the keys. */
+	dev_dbg(hba->dev, "PMDIAG crypto reprogram-all begin\n");
 	blk_crypto_reprogram_all_keys(&hba->crypto_profile);
+	dev_dbg(hba->dev, "PMDIAG crypto reprogram-all end\n");
 
 	if (hba->quirks & UFSHCD_QUIRK_BROKEN_CRYPTO_ENABLE)
 		return false;
