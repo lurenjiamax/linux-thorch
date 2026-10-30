@@ -307,6 +307,12 @@ static inline void tick_nohz_task_switch(void)
 		__tick_nohz_task_switch();
 }
 
+#ifdef CONFIG_SUSPEND
+void tick_dump_suspend_state(unsigned int cpu);
+#else
+static inline void tick_dump_suspend_state(unsigned int cpu) { }
+#endif
+
 static inline void tick_nohz_user_enter_prepare(void)
 {
 	if (tick_nohz_full_cpu(smp_processor_id()))

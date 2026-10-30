@@ -228,6 +228,23 @@ void watchdog_hardlockup_check(unsigned int cpu, struct pt_regs *regs)
 		per_cpu(watchdog_hardlockup_warned, cpu) = false;
 		return;
 	}
+	/* Capture before sched_ext consumes the first report. No watchdog or
+	 * suspend state is changed; these are best-effort concurrent snapshots.
+	 */
+	pr_warn("PMDIAG hardlock observer=%u target=%u timer=%d saved=%d missed=%d threshold=%u touched=%d warned=%d\n",
+		smp_processor_id(), cpu,
+		atomic_read(&per_cpu(hrtimer_interrupts, cpu)),
+		READ_ONCE(per_cpu(hrtimer_interrupts_saved, cpu)),
+		READ_ONCE(per_cpu(hrtimer_interrupts_missed, cpu)),
+		watchdog_hardlockup_miss_thresh,
+		READ_ONCE(per_cpu(watchdog_hardlockup_touched, cpu)),
+		READ_ONCE(per_cpu(watchdog_hardlockup_warned, cpu)));
+	{
+		unsigned int diag_cpu;
+
+		for_each_online_cpu(diag_cpu)
+			tick_dump_suspend_state(diag_cpu);
+	}
 
 #ifdef CONFIG_SYSFS
 	++hardlockup_count;

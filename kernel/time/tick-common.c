@@ -506,6 +506,21 @@ void tick_resume(void)
 static DEFINE_RAW_SPINLOCK(tick_freeze_lock);
 static DEFINE_WAIT_OVERRIDE_MAP(tick_freeze_map, LD_WAIT_SLEEP);
 static unsigned int tick_freeze_depth;
+/* Diagnostic snapshots only; never printk while holding tick_freeze_lock.
+ * phase: 0=running, 1=freezing, 2=frozen, 3=unfreezing.
+ */
+static DEFINE_PER_CPU(unsigned int, tick_diag_phase);
+static DEFINE_PER_CPU(unsigned long, tick_diag_freezes);
+static DEFINE_PER_CPU(unsigned long, tick_diag_thaws);
+
+void tick_dump_suspend_state(unsigned int cpu)
+{
+	pr_warn("PMDIAG tick cpu=%u phase=%u freezes=%lu thaws=%lu global_depth=%u system_state=%u\n",
+		cpu, READ_ONCE(per_cpu(tick_diag_phase, cpu)),
+		READ_ONCE(per_cpu(tick_diag_freezes, cpu)),
+		READ_ONCE(per_cpu(tick_diag_thaws, cpu)),
+		READ_ONCE(tick_freeze_depth), READ_ONCE(system_state));
+}
 
 /**
  * tick_freeze - Suspend the local tick and (possibly) timekeeping.
@@ -518,6 +533,7 @@ static unsigned int tick_freeze_depth;
  */
 void tick_freeze(void)
 {
+	__this_cpu_write(tick_diag_phase, 1);
 	raw_spin_lock(&tick_freeze_lock);
 
 	tick_freeze_depth++;
@@ -544,6 +560,8 @@ void tick_freeze(void)
 		tick_suspend_local();
 	}
 
+	__this_cpu_inc(tick_diag_freezes);
+	__this_cpu_write(tick_diag_phase, 2);
 	raw_spin_unlock(&tick_freeze_lock);
 }
 
@@ -558,6 +576,7 @@ void tick_freeze(void)
  */
 void tick_unfreeze(void)
 {
+	__this_cpu_write(tick_diag_phase, 3);
 	raw_spin_lock(&tick_freeze_lock);
 
 	if (tick_freeze_depth == num_online_cpus()) {
@@ -580,6 +599,8 @@ void tick_unfreeze(void)
 	}
 
 	tick_freeze_depth--;
+	__this_cpu_inc(tick_diag_thaws);
+	__this_cpu_write(tick_diag_phase, 0);
 
 	raw_spin_unlock(&tick_freeze_lock);
 }
