@@ -309,8 +309,10 @@ static inline void tick_nohz_task_switch(void)
 
 #ifdef CONFIG_SUSPEND
 void tick_dump_suspend_state(unsigned int cpu);
+bool tick_cpu_suspended(unsigned int cpu);
 #else
 static inline void tick_dump_suspend_state(unsigned int cpu) { }
+static inline bool tick_cpu_suspended(unsigned int cpu) { return false; }
 #endif
 
 static inline void tick_nohz_user_enter_prepare(void)

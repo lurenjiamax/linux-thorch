@@ -209,6 +209,14 @@ void watchdog_hardlockup_check(unsigned int cpu, struct pt_regs *regs)
 	int hardlockup_all_cpu_backtrace;
 	unsigned int this_cpu;
 	unsigned long flags;
+	/* s2idle deliberately stops this CPU's timer. A running buddy must not
+	 * interpret that interval as missed watchdog interrupts.
+	 */
+	if (tick_cpu_suspended(cpu)) {
+		watchdog_hardlockup_update_reset(cpu);
+		per_cpu(watchdog_hardlockup_warned, cpu) = false;
+		return;
+	}
 
 	if (per_cpu(watchdog_hardlockup_touched, cpu)) {
 		watchdog_hardlockup_update_reset(cpu);
@@ -226,6 +234,11 @@ void watchdog_hardlockup_check(unsigned int cpu, struct pt_regs *regs)
 	 */
 	if (!is_hardlockup(cpu)) {
 		per_cpu(watchdog_hardlockup_warned, cpu) = false;
+		return;
+	}
+	/* The target may have entered s2idle while we sampled its counter. */
+	if (tick_cpu_suspended(cpu)) {
+		watchdog_hardlockup_update_reset(cpu);
 		return;
 	}
 	/* Capture before sched_ext consumes the first report. No watchdog or

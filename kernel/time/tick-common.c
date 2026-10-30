@@ -512,6 +512,12 @@ static unsigned int tick_freeze_depth;
 static DEFINE_PER_CPU(unsigned int, tick_diag_phase);
 static DEFINE_PER_CPU(unsigned long, tick_diag_freezes);
 static DEFINE_PER_CPU(unsigned long, tick_diag_thaws);
+static DEFINE_PER_CPU(bool, tick_watchdog_suspended);
+
+bool tick_cpu_suspended(unsigned int cpu)
+{
+	return smp_load_acquire(&per_cpu(tick_watchdog_suspended, cpu));
+}
 
 void tick_dump_suspend_state(unsigned int cpu)
 {
@@ -533,6 +539,7 @@ void tick_dump_suspend_state(unsigned int cpu)
  */
 void tick_freeze(void)
 {
+	smp_store_release(this_cpu_ptr(&tick_watchdog_suspended), true);
 	__this_cpu_write(tick_diag_phase, 1);
 	raw_spin_lock(&tick_freeze_lock);
 
@@ -601,6 +608,11 @@ void tick_unfreeze(void)
 	tick_freeze_depth--;
 	__this_cpu_inc(tick_diag_thaws);
 	__this_cpu_write(tick_diag_phase, 0);
+	/* Reset the hardlockup baseline before exposing the resumed local tick.
+	 * The buddy checker owns the counters; touching asks it to reset them.
+	 */
+	touch_nmi_watchdog();
+	smp_store_release(this_cpu_ptr(&tick_watchdog_suspended), false);
 
 	raw_spin_unlock(&tick_freeze_lock);
 }
