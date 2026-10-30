@@ -99,13 +99,17 @@ static int __scm_smc_do_quirk_handle_waitq(struct device *dev, struct arm_smccc_
 	struct arm_smccc_args *smc = waitq;
 
 	do {
+		dev_dbg(dev, "PMDIAG scm smc begin fn=%#lx\n", smc->args[0]);
 		__scm_smc_do_quirk(smc, res);
+		dev_dbg(dev, "PMDIAG scm smc end status=%ld\n", (long)res->a0);
 
 		if (res->a0 == QCOM_SCM_WAITQ_SLEEP) {
 			wq_ctx = res->a1;
 			smc_call_ctx = res->a2;
 
+			dev_dbg(dev, "PMDIAG scm waitq begin\n");
 			ret = qcom_scm_wait_for_wq_completion(wq_ctx);
+			dev_dbg(dev, "PMDIAG scm waitq end ret=%d\n", ret);
 			if (ret)
 				return ret;
 
@@ -128,11 +132,14 @@ static int __scm_smc_do(struct device *dev, struct arm_smccc_args *smc,
 	}
 
 	do {
+		dev_dbg(dev, "PMDIAG scm lock begin fn=%#lx retry=%d\n", smc->args[0], retry_count);
 		mutex_lock(&qcom_scm_lock);
+		dev_dbg(dev, "PMDIAG scm lock end\n");
 
 		ret = __scm_smc_do_quirk_handle_waitq(dev, smc, res);
 
 		mutex_unlock(&qcom_scm_lock);
+		dev_dbg(dev, "PMDIAG scm unlock end ret=%d\n", ret);
 
 		if (ret)
 			return ret;
@@ -177,9 +184,11 @@ int __scm_smc_call(struct device *dev, const struct qcom_scm_desc *desc,
 		if (!mempool)
 			return -EINVAL;
 
+		dev_dbg(dev, "PMDIAG scm extended-args alloc begin\n");
 		args_virt = qcom_tzmem_alloc(mempool,
 					     SCM_SMC_N_EXT_ARGS * sizeof(u64),
 					     flag);
+		dev_dbg(dev, "PMDIAG scm extended-args alloc end ok=%d\n", !!args_virt);
 		if (!args_virt)
 			return -ENOMEM;
 

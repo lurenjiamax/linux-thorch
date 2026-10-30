@@ -1620,16 +1620,23 @@ int qcom_scm_legacy_ice_set_key(u32 index, const u8 *key, u32 key_size,
 
 	if (!key || !key_size || key_size > 128)
 		return -EINVAL;
+	dev_dbg(__scm->dev, "PMDIAG legacy-key capabilities begin\n");
 	if (!(qcom_scm_legacy_ice_capabilities() & QCOM_SCM_LEGACY_ICE_SET_KEY))
 		return -EOPNOTSUPP;
+	dev_dbg(__scm->dev, "PMDIAG legacy-key capabilities end; tzmem-alloc begin\n");
 	keybuf = qcom_tzmem_alloc(__scm->mempool, key_size, GFP_KERNEL);
+	dev_dbg(__scm->dev, "PMDIAG legacy-key tzmem-alloc end ok=%d\n", !!keybuf);
 	if (!keybuf)
 		return -ENOMEM;
 	memcpy(keybuf, key, key_size);
 	desc.args[1] = qcom_tzmem_to_phys(keybuf);
+	dev_dbg(__scm->dev, "PMDIAG legacy-key scm-call begin\n");
 	ret = qcom_scm_call(__scm->dev, &desc, NULL);
+	dev_dbg(__scm->dev, "PMDIAG legacy-key scm-call end ret=%d\n", ret);
 	memzero_explicit(keybuf, key_size);
+	dev_dbg(__scm->dev, "PMDIAG legacy-key tzmem-free begin\n");
 	qcom_tzmem_free(keybuf);
+	dev_dbg(__scm->dev, "PMDIAG legacy-key tzmem-free end\n");
 	return ret;
 }
 EXPORT_SYMBOL_GPL(qcom_scm_legacy_ice_set_key);

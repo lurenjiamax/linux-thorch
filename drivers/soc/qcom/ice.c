@@ -451,6 +451,15 @@ static int qcom_ice_program_wrapped_key(struct qcom_ice *ice, unsigned int slot,
 		dev_err_ratelimited(dev, "Got wrapped key when not using HWKM\n");
 		return -EINVAL;
 	}
+	/* A UFS controller reset can reset ICE after the resume callback has
+	 * initialized HWKM. Match the downstream per-key hardware check rather
+	 * than trusting the software flag across that reset.
+	 */
+	if (ice->android_legacy_hwkm &&
+	    (qcom_ice_readl(ice, QCOM_ICE_REG_CONTROL) & BIT(0))) {
+		dev_dbg(dev, "PMDIAG wrapped-key hardware requests hwkm reinit slot=%u\n", slot);
+		ice->hwkm_init_complete = false;
+	}
 	if (!ice->hwkm_init_complete) {
 		if (ice->android_legacy_hwkm) {
 			err = qcom_ice_hwkm_init(ice);
@@ -464,8 +473,10 @@ static int qcom_ice_program_wrapped_key(struct qcom_ice *ice, unsigned int slot,
 	}
 
 	/* Clear CFGE before programming the key. */
+	dev_dbg(dev, "PMDIAG wrapped-key cfge-clear begin slot=%u\n", slot);
 	qcom_ice_writel(ice, 0x0, QCOM_ICE_REG_CRYPTOCFG(slot));
 	wmb();
+	dev_dbg(dev, "PMDIAG wrapped-key cfge-clear end slot=%u\n", slot);
 
 	/* Call into TrustZone to program the wrapped key using HWKM. */
 	if (ice->android_legacy_hwkm) {
@@ -473,8 +484,10 @@ static int qcom_ice_program_wrapped_key(struct qcom_ice *ice, unsigned int slot,
 			return -EINVAL;
 		cfg.capidx = ice->crypto_cap_idx;
 		/* Thor's crypto-qti-hwkm module ABI: slot*2, cipher/dusize/CE=0. */
+		dev_dbg(dev, "PMDIAG wrapped-key legacy-scm begin slot=%u\n", slot);
 		err = qcom_scm_legacy_ice_set_key(slot * 2, bkey->bytes,
 						bkey->size, 0, 0, 0);
+		dev_dbg(dev, "PMDIAG wrapped-key legacy-scm end slot=%u ret=%d\n", slot, err);
 	} else {
 		err = qcom_scm_ice_set_key(translate_hwkm_slot(ice, slot), bkey->bytes,
 				   bkey->size, cfg.capidx, cfg.dusize);
@@ -487,9 +500,11 @@ static int qcom_ice_program_wrapped_key(struct qcom_ice *ice, unsigned int slot,
 	}
 
 	/* Set CFGE after programming the key. */
+	dev_dbg(dev, "PMDIAG wrapped-key cfge-enable begin slot=%u\n", slot);
 	qcom_ice_writel(ice, le32_to_cpu(cfg.regval),
 			QCOM_ICE_REG_CRYPTOCFG(slot));
 	wmb();
+	dev_dbg(dev, "PMDIAG wrapped-key cfge-enable end slot=%u\n", slot);
 	return 0;
 }
 
