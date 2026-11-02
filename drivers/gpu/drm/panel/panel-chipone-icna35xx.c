@@ -45,6 +45,7 @@ struct panel_desc {
 
 	const struct drm_display_mode *modes;
 	unsigned int num_modes;
+	u16 max_brightness;
 	int (*init_sequence)(struct panel_info *pinfo);
 
 	struct drm_dsc_config dsc;
@@ -258,6 +259,7 @@ static const struct drm_display_mode icna3520_modes[] = {
 };
 
 static struct panel_desc icna3512_desc = {
+	.max_brightness = 4096,
 	.modes = icna3512_modes,
 	.num_modes = ARRAY_SIZE(icna3512_modes),
 	.width_mm = 160,
@@ -280,6 +282,8 @@ static struct panel_desc icna3512_desc = {
 };
 
 static struct panel_desc icna3520_desc = {
+	/* Match the Thor Android panel DBV limit, not its logical UI range. */
+	.max_brightness = 3413,
 	.modes = icna3520_modes,
 	.num_modes = ARRAY_SIZE(icna3520_modes),
 	.width_mm = 136,
@@ -461,10 +465,11 @@ static const struct backlight_ops icna35xx_bl_ops = {
 static struct backlight_device *icna35xx_create_backlight(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
+	struct panel_info *pinfo = mipi_dsi_get_drvdata(dsi);
 	const struct backlight_properties props = {
 		.type = BACKLIGHT_RAW,
-		.brightness = 4096,
-		.max_brightness = 4096,
+		.brightness = pinfo->desc->max_brightness,
+		.max_brightness = pinfo->desc->max_brightness,
 	};
 
 	return devm_backlight_device_register(dev, dev_name(dev), dev, dsi,

@@ -203,7 +203,10 @@ static int ch13726a_bl_update_status(struct backlight_device *bl)
 
 	dsi->mode_flags &= ~MIPI_DSI_MODE_LPM;
 
-	ret = mipi_dsi_dcs_set_display_brightness(dsi, brightness);
+	if (of_device_is_compatible(dsi->dev.of_node, "ch13726a,thor"))
+		ret = mipi_dsi_dcs_set_display_brightness_large(dsi, brightness);
+	else
+		ret = mipi_dsi_dcs_set_display_brightness(dsi, brightness);
 	if (ret < 0)
 		return ret;
 
@@ -220,11 +223,17 @@ static struct backlight_device *
 ch13726a_create_backlight(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
-	const struct backlight_properties props = {
+	struct backlight_properties props = {
 		.type = BACKLIGHT_RAW,
 		.brightness = 255,
 		.max_brightness = 255,
 	};
+
+	/* Thor's Android panel configuration uses a full 16-bit DBV. */
+	if (of_device_is_compatible(dev->of_node, "ch13726a,thor")) {
+		props.brightness = 65535;
+		props.max_brightness = 65535;
+	}
 
 	return devm_backlight_device_register(dev, dev_name(dev), dev, dsi,
 					      &ch13726a_bl_ops, &props);
