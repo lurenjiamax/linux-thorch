@@ -576,6 +576,9 @@ regulator_get_suspend_state(struct regulator_dev *rdev, suspend_state_t state)
 	 * has no PM_SUSPEND_TO_IDLE devicetree binding).
 	 */
 	case PM_SUSPEND_TO_IDLE:
+		if (!rdev->desc->s2idle_uses_state_mem)
+			return NULL;
+		fallthrough;
 	case PM_SUSPEND_MEM:
 		return &rdev->constraints->state_mem;
 	case PM_SUSPEND_MAX:

@@ -667,6 +667,7 @@ static int rpmh_regulator_init_vreg(struct rpmh_vreg *vreg, struct device *dev,
 						"qcom,always-wait-for-ack");
 
 	vreg->rdesc.owner	= THIS_MODULE;
+	vreg->rdesc.s2idle_uses_state_mem = true;
 	vreg->rdesc.type	= REGULATOR_VOLTAGE;
 	vreg->rdesc.ops		= vreg->hw_data->ops;
 	vreg->rdesc.of_map_mode	= vreg->hw_data->of_map_mode;

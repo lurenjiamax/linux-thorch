@@ -359,6 +359,7 @@ enum regulator_type {
  * @n_ramp_values:	number of elements at @ramp_delay_table.
  *
  * @enable_time: Time taken for initial enable of regulator (in uS).
+ * @s2idle_uses_state_mem: Apply regulator-state-mem constraints in s2idle.
  * @off_on_delay: guard time (in uS), before re-enabling a regulator
  *
  * @poll_enabled_time: The polling interval (in uS) to use while checking that
@@ -437,6 +438,7 @@ struct regulator_desc {
 
 	unsigned int enable_time;
 
+	bool s2idle_uses_state_mem;
 	unsigned int off_on_delay;
 
 	unsigned int poll_enabled_time;
