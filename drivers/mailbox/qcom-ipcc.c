@@ -9,7 +9,9 @@
 #include <linux/irqdomain.h>
 #include <linux/mailbox_controller.h>
 #include <linux/module.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/suspend.h>
 
 #include <dt-bindings/mailbox/qcom-ipcc.h>
 
@@ -48,6 +50,7 @@ struct qcom_ipcc_chan_info {
  * @mbox:		The mailbox controller
  * @num_chans:		Number of @chans elements
  * @irq:		Summary irq
+ * @mask_on_s2ram:	Mask the summary irq across suspend-to-RAM
  */
 struct qcom_ipcc {
 	struct device *dev;
@@ -58,6 +61,7 @@ struct qcom_ipcc {
 	struct mbox_controller mbox;
 	int num_chans;
 	int irq;
+	bool mask_on_s2ram;
 };
 
 static inline struct qcom_ipcc *to_qcom_ipcc(struct mbox_controller *mbox)
@@ -255,6 +259,27 @@ static int qcom_ipcc_setup_mbox(struct qcom_ipcc *ipcc,
 	return devm_mbox_controller_register(dev, mbox);
 }
 
+static int qcom_ipcc_suspend_late(struct device *dev)
+{
+	struct qcom_ipcc *ipcc = dev_get_drvdata(dev);
+
+	/* s2idle needs live doorbells; s2ram must quiesce noirq consumers. */
+	if (ipcc->mask_on_s2ram && pm_suspend_target_state == PM_SUSPEND_MEM)
+		disable_irq(ipcc->irq);
+
+	return 0;
+}
+
+static int qcom_ipcc_resume_early(struct device *dev)
+{
+	struct qcom_ipcc *ipcc = dev_get_drvdata(dev);
+
+	if (ipcc->mask_on_s2ram && pm_suspend_target_state == PM_SUSPEND_MEM)
+		enable_irq(ipcc->irq);
+
+	return 0;
+}
+
 static int qcom_ipcc_pm_resume(struct device *dev)
 {
 	struct qcom_ipcc *ipcc = dev_get_drvdata(dev);
@@ -320,8 +345,16 @@ static int qcom_ipcc_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_mbox;
 
+	ipcc->mask_on_s2ram =
+		of_device_is_compatible(pdev->dev.of_node, "qcom,sm8550-ipcc") ||
+		of_device_is_compatible(pdev->dev.of_node, "qcom,sm8750-ipcc");
+
+	/* A lazy disable leaves the powered GIC able to wake suspend-to-RAM. */
+	if (ipcc->mask_on_s2ram)
+		irq_set_status_flags(ipcc->irq, IRQ_DISABLE_UNLAZY);
+
 	ret = devm_request_irq(&pdev->dev, ipcc->irq, qcom_ipcc_irq_fn,
-			       IRQF_TRIGGER_HIGH |
+			       IRQF_TRIGGER_HIGH | IRQF_NO_SUSPEND |
 			       IRQF_NO_THREAD, name, ipcc);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to register the irq: %d\n", ret);
@@ -356,6 +389,7 @@ static const struct of_device_id qcom_ipcc_of_match[] = {
 MODULE_DEVICE_TABLE(of, qcom_ipcc_of_match);
 
 static const struct dev_pm_ops qcom_ipcc_dev_pm_ops = {
+	LATE_SYSTEM_SLEEP_PM_OPS(qcom_ipcc_suspend_late, qcom_ipcc_resume_early)
 	NOIRQ_SYSTEM_SLEEP_PM_OPS(NULL, qcom_ipcc_pm_resume)
 };
 

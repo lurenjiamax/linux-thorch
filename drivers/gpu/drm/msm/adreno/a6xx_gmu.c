@@ -64,7 +64,13 @@ static irqreturn_t a6xx_hfi_irq(int irq, void *data)
 	struct a6xx_gmu *gmu = data;
 	u32 status;
 
-	status = gmu_read(gmu, REG_A6XX_GMU_GMU2HOST_INTR_INFO);
+	/*
+	 * Only clear what this handler deals with: the HFI response (MSGQ) and
+	 * OOB ack bits are polled for, and clearing them here loses the GMU's
+	 * answer to whoever is waiting for it.
+	 */
+	status = gmu_read(gmu, REG_A6XX_GMU_GMU2HOST_INTR_INFO) &
+		 A6XX_GMU_GMU2HOST_INTR_INFO_CM3_FAULT;
 	gmu_write(gmu, REG_A6XX_GMU_GMU2HOST_INTR_CLR, status);
 
 	if (status & A6XX_GMU_GMU2HOST_INTR_INFO_CM3_FAULT) {
@@ -437,9 +443,13 @@ int a6xx_gmu_set_oob(struct a6xx_gmu *gmu, enum a6xx_gmu_oob_state state)
 
 		/* We may timeout because the GMU is temporarily wedged from
 		 * pending faults from the GPU and we are taking a devcoredump.
-		 * Wait until the MMU is resumed and try again.
+		 * Wait until the MMU is resumed and try again, but not for
+		 * ever: the devcoredump takes gpu->lock, which our caller may
+		 * hold (recover_worker), and both would wait on each other.
 		 */
-		wait_for_completion(&a6xx_gpu->base.fault_coredump_done);
+		if (!wait_for_completion_timeout(&a6xx_gpu->base.fault_coredump_done,
+						 msecs_to_jiffies(2000)))
+			break;
 	} while (true);
 
 	if (ret)
@@ -1291,6 +1301,9 @@ int a6xx_gmu_resume(struct a6xx_gpu *a6xx_gpu)
 
 	/* Set the bus quota to a reasonable value for boot */
 	a6xx_gmu_set_initial_bw(gpu, gmu);
+
+	/* The mask resets to 0 with the GMU: keep HFI replies off the irq line */
+	gmu_write(gmu, REG_A6XX_GMU_GMU2HOST_INTR_MASK, ~0);
 
 	/* Enable the GMU interrupt */
 	gmu_write(gmu, REG_A6XX_GMU_AO_HOST_INTERRUPT_CLR, ~0);
